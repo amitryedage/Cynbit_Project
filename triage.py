@@ -1,0 +1,152 @@
+"""Core ticket-triage pipeline: classify -> prioritise -> retrieve KB -> draft reply -> route."""
+import os, re
+import numpy as np
+from scipy.sparse import hstack
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics.pairwise import cosine_similarity
+from kb_and_data import KB, KB_BY_ID
+
+SECURITY_RX = re.compile(r"ransom|malware|trojan|virus|phish|fake (login|page|site|invoice|email)|suspicious|scam|dodgy|bitcoin|crypto|"
+    r"\.locked|encrypt|(clicked|opened|followed).{0,30}(link|attachment)|(gave|entered|typed).{0,25}password|pretending to be|"
+    r"quarantined a (trojan|virus|malware)|acting (weird|strange|odd)|spoof", re.I)
+URG = [re.compile(p, re.I) for p in [
+    r"everyone|all users|all staff|everybody|entire (office|team|company|department|site)|whole (office|site|branch|floor|company)|"
+    r"production|business.critical|customers? (cannot|can't|unable)|all visitors|\d{2,} (people|staff|users|homeworkers)|ransom|encrypt|"
+    r"\.locked|completely (lost|down)|branch.*(lost|down)|staff idle|none of the|nobody|no one can",
+    r"several|my (whole )?team|few (colleagues|of us)|department|deadline|cannot work|can't work|unable to work|whole floor|failing for|for \d days|"
+    r"all week|stale|stalled|all (scheduled|reports)|since (this )?morning",
+    r"just me|only me|intermittent|workaround|annoying|only on my|sometimes|a few minutes|every time",
+    r"no rush|whenever|when you get a chance|not urgent|low priority|would it be possible|could i get|can we get|can i be given|please can you|"
+    r"request|new starter|approval|approved|temp worker|second keyboard"]]
+
+def urgency_feats(text):
+    return np.array([[1.0 if r.search(text) else 0.0 for r in URG]]) * 2.0
+
+def clean(t: str) -> str:
+    return re.sub(r"\s+", " ", t.lower()).strip()
+
+class TicketTriage:
+    def __init__(self, low_conf=0.45):
+        self.low_conf = low_conf
+        # word n-grams capture meaning; char n-grams make the model robust to typos
+        self.w = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, min_df=1)
+        self.c = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True, min_df=2)
+        self.cat_clf = LogisticRegression(max_iter=2000, C=8)
+        self.pri_clf = LogisticRegression(max_iter=2000, C=4)
+        # KB retriever
+        self.kb_vec = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, stop_words="english")
+        self.kb_texts = [f"{k[2]} {k[3]}" for k in KB]
+        self.kb_mat = self.kb_vec.fit_transform(self.kb_texts)
+        # symptom-augmented index: add training ticket text to the article it resolved
+        self.kb_aug = None
+
+    def _X(self, texts, fit=False):
+        texts = [clean(t) for t in texts]
+        if fit:
+            return hstack([self.w.fit_transform(texts), self.c.fit_transform(texts)]).tocsr()
+        return hstack([self.w.transform(texts), self.c.transform(texts)]).tocsr()
+
+    def _Xp(self, X, texts):
+        from scipy.sparse import csr_matrix, vstack
+        return hstack([X, vstack([csr_matrix(urgency_feats(x)) for x in texts])]).tocsr()
+
+    def fit(self, tickets):
+        texts = [t["text"] for t in tickets]
+        X = self._X(texts, fit=True)
+        self.cat_clf.fit(X, [t["category"] for t in tickets])
+        self.pri_clf.fit(self._Xp(X, texts), [t["priority"] for t in tickets])
+        # resolved-ticket memory: concat historic tickets per KB article (learned retrieval signal)
+        by_kb = {k[0]: [] for k in KB}
+        for t in tickets:
+            by_kb[t["kb_id"]].append(clean(t["text"]))
+        docs = [self.kb_texts[i] + " " + " ".join(by_kb[k[0]][:40]) for i, k in enumerate(KB)]
+        self.kb_aug = self.kb_vec.transform(docs)
+        return self
+
+    def predict(self, text, mode="hybrid"):
+        X = self._X([text])
+        cp = self.cat_clf.predict_proba(X)[0]; pp = self.pri_clf.predict_proba(self._Xp(X, [text]))[0]
+        cat = self.cat_clf.classes_[cp.argmax()]; pri = self.pri_clf.classes_[pp.argmax()]
+        flags = []
+        # safety nets (recall-first): a missed security incident or major outage costs far more than an extra escalation
+        if SECURITY_RX.search(text) and cat != "security_incident":
+            cat = "security_incident"; flags.append("security_keyword_override")
+        if URG[0].search(text) and pri != "P1":
+            pri = "P1"; flags.append("p1_rule_floor")
+        hits = self.retrieve(text, cat, cp.max(), mode=mode)
+        return {"category": cat, "cat_conf": float(cp.max()), "priority": pri, "pri_conf": float(pp.max()),
+                "cat_probs": dict(zip(self.cat_clf.classes_, map(float, cp))), "kb": hits, "flags": flags}
+
+    def retrieve(self, text, cat=None, conf=0.0, k=3, mode="hybrid"):
+        q = self.kb_vec.transform([clean(text)])
+        s_plain = cosine_similarity(q, self.kb_mat)[0]
+        if mode == "plain":
+            s = s_plain
+        else:
+            s = 0.4 * s_plain + 0.6 * cosine_similarity(q, self.kb_aug)[0]
+            if cat is not None and conf >= self.low_conf:     # boost articles in the predicted category
+                s = s + np.array([0.15 if a[1] == cat else 0.0 for a in KB])
+        idx = np.argsort(-s)[:k]
+        return [{"kb_id": KB[i][0], "title": KB[i][2], "category": KB[i][1], "score": float(s[i])} for i in idx]
+
+    # ---------------------------------------------------------------- routing / guardrails
+    def route(self, pred):
+        reasons = []
+        if pred["category"] == "security_incident":
+            reasons.append("Security category: always handled by SOC / security team")
+        if pred["priority"] == "P1":
+            reasons.append("P1 priority: major incident process")
+        if pred["cat_conf"] < self.low_conf:
+            reasons.append(f"Low classification confidence ({pred['cat_conf']:.2f}): human review")
+        if reasons:
+            team = "Security Operations" if pred["category"] == "security_incident" else "Senior engineer / duty manager"
+            return {"auto_reply_allowed": False, "escalate_to": team, "reasons": reasons}
+        return {"auto_reply_allowed": True, "escalate_to": "Service desk L1", "reasons": ["Routine ticket: draft for L1 approval"]}
+
+    # ---------------------------------------------------------------- generation
+    def draft_reply(self, text, pred, use_llm=True):
+        if pred["cat_conf"] < self.low_conf:   # guardrail: never paste unrelated KB steps for a vague ticket
+            return {"text": "Hello,\n\nThanks for contacting us. To help quickly, could you tell us: (1) what exactly you were trying to do, "
+                            "(2) any error message you see, (3) when it started, and (4) how many people are affected?\n\nAn engineer will pick this up as soon as we hear back.",
+                    "mode": "Clarification request (low confidence)", "grounded": True}
+        top = pred["kb"][0]; art = KB_BY_ID[top["kb_id"]]
+        sources = [KB_BY_ID[h["kb_id"]] for h in pred["kb"][:2]]
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if use_llm and key:
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=key)
+                ctx = "\n\n".join(f"[{s[0]}] {s[2]}\n{s[3]}" for s in sources)
+                prompt = (f"You are a service desk analyst at a UK managed IT provider.\n"
+                          f"Ticket: {text}\nPredicted category: {pred['category']}, priority: {pred['priority']}.\n\n"
+                          f"Knowledge base articles:\n{ctx}\n\n"
+                          "Write a short, friendly reply to the customer using ONLY the steps in the articles above. "
+                          "Cite the article ID in square brackets after each step you use. Never invent steps, "
+                          "links or commands. If the articles do not cover the problem, say an engineer will "
+                          "follow up. Do not ask for passwords. Max 120 words.")
+                r = client.messages.create(model=os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5"), max_tokens=400,
+                                           messages=[{"role": "user", "content": prompt}])
+                out = r.content[0].text
+                return {"text": out, "mode": "LLM (grounded in KB)", "grounded": self.check_grounding(out, sources)}
+            except Exception as e:  # fall back safely
+                err = f" (LLM unavailable: {type(e).__name__})"
+        else:
+            err = ""
+        steps = re.split(r"\s*\d\)\s*", art[3]); steps = [s for s in steps if s][:4]
+        out = ("Hello,\n\nThanks for getting in touch. Here are the first steps we suggest:\n"
+               + "\n".join(f"{i+1}. {s} [{art[0]}]" for i, s in enumerate(steps))
+               + "\n\nIf this doesn't resolve it, reply and an engineer will pick it up.")
+        return {"text": out, "mode": "Template (no LLM key)" + err, "grounded": True}
+
+    @staticmethod
+    def check_grounding(reply, sources):
+        """Guardrail: reply must cite at least one retrieved article and no unknown KB id."""
+        cited = set(re.findall(r"KB-\d{3}", reply)); allowed = {s[0] for s in sources}
+        return bool(cited) and cited <= allowed
+
+    def run(self, text, use_llm=True):
+        pred = self.predict(text)
+        pred["route"] = self.route(pred)
+        pred["reply"] = self.draft_reply(text, pred, use_llm=use_llm)   # always a DRAFT: a human approves before sending
+        return pred
