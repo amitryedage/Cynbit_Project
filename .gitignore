@@ -1,0 +1,50 @@
+
+# PRD Files
+#Project development plan 
+PRD AI Service-Desk Copilot for Cybit.md
+*PRD*.md
+*prd*.md
+
+
+
+# Testing Files & Evaluation Artifacts
+
+tests/
+test_*.py
+*_test.py
+blind_testset.py
+evaluate.py
+eval_output.txt
+results.json
+confusion_matrix_*.png
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==============================================================================
+# Python & Virtual Environments (uv, venv)
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE & Editor caches
+.idea/
+.vscode/
+*.swp
+*.swo

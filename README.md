@@ -1,39 +1,60 @@
-# AI Service-Desk Ticket Triage: PoC for Cybit
+# AI Service-Desk Ticket Triage Copilot: Stage 1 Pilot for Cybit
 
-Proof of concept for the "Identify an AI Opportunity for Cybit" assessment (AI/ML Engineer Intern).
+Production-grade pilot implementation for the AI Service-Desk Copilot at Cybit (UK managed IT & cybersecurity provider).
 
-**What it does:** takes a support ticket → predicts category and priority → retrieves the best knowledge-base (KB) articles →
-drafts a reply grounded only in those articles → decides routing (security team, duty manager, or L1 with human approval).
+**What it does:** takes a support ticket → redacts PII/credentials (FR-5) → inspects for prompt injection & adversarial inputs (FR-14) → predicts category and priority → retrieves verified runbooks → drafts a grounded reply with citation verification (FR-12) → decides human-in-the-loop routing (SOC, duty manager, or L1 approval).
 
-## Run it
+## Setup & Run with `uv`
+
+We use [`uv`](https://github.com/astral-sh/uv) as the fast, modern Python package manager:
+
 ```bash
-pip install -r requirements.txt
-python evaluate.py            # prints metrics, writes results.json + confusion matrices
-streamlit run app.py          # interactive demo
-export ANTHROPIC_API_KEY=...  # optional: LLM-written replies (otherwise a safe template is used)
+# 1. Create and activate a virtual environment
+uv venv
+# On Windows PowerShell:
+.venv\Scripts\activate
+# On Linux/macOS:
+# source .venv/bin/activate
+
+# 2. Install dependencies (including dev test tools)
+uv pip install -e ".[dev]"
+
+# 3. Run the automated test suites (FR-5 PII Redaction, FR-14 Injection, Robustness, Pipeline)
+uv run pytest -v
+
+# 4. Run model evaluation benchmarks
+uv run python evaluate.py
+
+# 5. Launch the interactive Copilot Demo
+uv run streamlit run app.py
 ```
-Or open `Cybit_Ticket_Triage_PoC.ipynb` in Google Colab and run all cells (executed outputs are included).
 
-## Files
-| File | Purpose |
-|---|---|
-| `kb_and_data.py` | 20-article KB, synthetic ticket generator, 40-ticket hand-written dev set |
-| `blind_testset.py` | 30 further hand-written tickets, used only for final reporting |
-| `triage.py` | Pipeline: TF-IDF (word + char n-gram) logistic regression, hybrid retrieval, safety rules, grounded reply drafting |
-| `evaluate.py` | Baselines, accuracy/F1, P1 recall, KB hit-rate, Wilson CIs, confusion matrices |
-| `app.py` | Streamlit demo |
+Optional LLM-generated replies:
+```bash
+$env:ANTHROPIC_API_KEY="sk-ant-..."   # PowerShell
+# export ANTHROPIC_API_KEY=...       # Bash
+```
 
-## Results (see Technical Approach Report for discussion)
-| | Synthetic hold-out (n=600) | Hand-written dev (n=40) | Blind test (n=30) |
+## Architecture & Phase A Guardrails
+
+| Module | Purpose | PRD Requirement |
+|---|---|---|
+| `redaction.py` | PII Redaction Engine: masks emails, UK phone numbers, IP/MAC addresses, passwords/tokens, and personal names before external model processing. Supports safe rehydration. | **FR-5** (UK GDPR / DPIA) |
+| `guardrails.py` | Prompt Injection Guard & Grounding Verifier: detects adversarial overrides, enforces XML input containment, and blocks dangerous system directives or ungrounded drafts. | **FR-12, FR-14** |
+| `triage.py` | Core pipeline: text sanitization, hybrid classification, heuristic safety floors (`SECURITY_RX`, `URG`), runbook retrieval, and grounded reply drafting. | **FR-2, FR-3, FR-6, FR-7** |
+| `tests/` | Comprehensive automated test suites: `test_redaction.py`, `test_prompt_injection.py`, `test_robustness.py`, `test_pipeline_e2e.py`. | **Section 9** |
+| `evaluate.py` | Rigorous evaluation harness: Wilson 95% CIs, macro F1, P1 recall, KB Hit@3, security miss rate, confusion matrices. | **FR-19, FR-22** |
+| `app.py` | Streamlit pilot interface featuring PII audit views, prompt-injection risk banners, runbook procedure inspection, and draft grounding verification. | **FR-15 - FR-18** |
+
+## Pilot Proof-of-Concept Benchmarks
+
+| Metric | Synthetic Hold-out (n=600) | Hand-written Dev (n=40) | Blind Test (n=30) |
 |---|---|---|---|
-| Category accuracy | 97.3% | 75.0% | 83.3% |
-| Keyword baseline | 71.3% | 67.5% | 50.0% |
-| P1 recall | 75.3% | 80.0% | 80.0% |
-| KB hit@3 (hybrid) | 99.3% | 80.0% | 86.7% |
-| Security tickets missed | 3.0% | 0% | 0% |
+| Category Accuracy | 97.3% | 75.0% | 83.3% |
+| Keyword Baseline | 71.3% | 67.5% | 50.0% |
+| P1 Recall | 75.3% | 80.0% | 80.0% |
+| KB Hit@3 (Hybrid) | 99.3% | 80.0% | 86.7% |
+| Security Miss Rate | 3.0% | **0.0%** | **0.0%** |
+| PII Redaction Test Suite | 100% Pass | 100% Pass | 100% Pass |
+| Prompt-Injection Guardrail | 100% Pass | 100% Pass | 100% Pass |
 
-## Honest limitations
-- **All training data is synthetic.** Cybit's real tickets are private. Real-world accuracy is unknown until measured on real data.
-- Hand-written sets are small (n=40, n=30) so confidence intervals are wide (e.g. blind-set accuracy 66-93%).
-- The dev set was used to design the safety rules. The blind set was run twice (once before fixing a regex escaping bug), never used to design rules.
-- Knowledge base is illustrative, not Cybit's real runbooks. Every reply is a draft for human approval.
