@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from kb_and_data import KB, KB_BY_ID
 from redaction import RedactionEngine
 from guardrails import PromptGuard
+from retrieval import HybridRetriever
 
 SECURITY_RX = re.compile(r"ransom|malware|trojan|virus|phish|fake (login|page|site|invoice|email)|suspicious|scam|dodgy|bitcoin|crypto|"
     r"\.locked|encrypt|(clicked|opened|followed).{0,30}(link|attachment)|(gave|entered|typed).{0,25}password|pretending to be|"
@@ -33,17 +34,15 @@ class TicketTriage:
         self.low_conf = low_conf
         self.redaction_engine = RedactionEngine()
         self.prompt_guard = PromptGuard()
+        self.retriever = HybridRetriever(KB)
         # word n-grams capture meaning; char n-grams make the model robust to typos
         self.w = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, min_df=1)
         self.c = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True, min_df=2)
         self.cat_clf = LogisticRegression(max_iter=2000, C=8)
         self.pri_clf = LogisticRegression(max_iter=2000, C=4)
-        # KB retriever
-        self.kb_vec = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, stop_words="english")
-        self.kb_texts = [f"{k[2]} {k[3]}" for k in KB]
-        self.kb_mat = self.kb_vec.fit_transform(self.kb_texts)
-        # symptom-augmented index: add training ticket text to the article it resolved
-        self.kb_aug = None
+        # Fallback sparse structures for legacy calls
+        self.kb_vec = self.retriever.sparse_vectorizer
+        self.kb_mat = self.retriever.sparse_matrix
 
     def _X(self, texts, fit=False):
         texts = [clean(t) for t in texts]
@@ -60,12 +59,8 @@ class TicketTriage:
         X = self._X(texts, fit=True)
         self.cat_clf.fit(X, [t["category"] for t in tickets])
         self.pri_clf.fit(self._Xp(X, texts), [t["priority"] for t in tickets])
-        # resolved-ticket memory: concat historic tickets per KB article (learned retrieval signal)
-        by_kb = {k[0]: [] for k in KB}
-        for t in tickets:
-            by_kb[t["kb_id"]].append(clean(t["text"]))
-        docs = [self.kb_texts[i] + " " + " ".join(by_kb[k[0]][:40]) for i, k in enumerate(KB)]
-        self.kb_aug = self.kb_vec.transform(docs)
+        # Fit hybrid retrieval symptom memory
+        self.retriever.fit_symptom_memory(tickets)
         return self
 
     def predict(self, text, mode="hybrid"):
@@ -93,16 +88,15 @@ class TicketTriage:
                 "injection_check": inj_check.to_dict()}
 
     def retrieve(self, text, cat=None, conf=0.0, k=3, mode="hybrid"):
-        q = self.kb_vec.transform([clean(text)])
-        s_plain = cosine_similarity(q, self.kb_mat)[0]
-        if mode == "plain":
-            s = s_plain
-        else:
-            s = 0.4 * s_plain + 0.6 * cosine_similarity(q, self.kb_aug)[0]
-            if cat is not None and conf >= self.low_conf:     # boost articles in the predicted category
-                s = s + np.array([0.15 if a[1] == cat else 0.0 for a in KB])
-        idx = np.argsort(-s)[:k]
-        return [{"kb_id": KB[i][0], "title": KB[i][2], "category": KB[i][1], "score": float(s[i])} for i in idx]
+        # Map legacy mode names
+        target_mode = "sparse" if mode in ("plain", "sparse") else ("dense" if mode == "dense" else "hybrid")
+        return self.retriever.retrieve(
+            query=text,
+            category=cat,
+            category_conf=conf,
+            k=k,
+            mode=target_mode
+        )
 
     # ---------------------------------------------------------------- routing / guardrails
     def route(self, pred):
