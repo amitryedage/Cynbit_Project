@@ -235,3 +235,62 @@ def rollback_model(req: RollbackRequest):
         "reason": req.reason,
         "operator": req.operator
     }
+
+# -----------------------------------------------------------------------------
+# Phase D: Configuration & Scorecard Endpoints (FR-9, FR-22, Section 10-11)
+# -----------------------------------------------------------------------------
+from config import PolicyConfigManager
+from drift_evaluator import DriftEvaluator
+from scorecard import PilotScorecardGenerator
+
+config_manager = PolicyConfigManager(storage=storage)
+drift_evaluator = DriftEvaluator(storage=storage, config_mgr=config_manager)
+scorecard_generator = PilotScorecardGenerator(storage=storage, evaluator=drift_evaluator)
+
+class ConfigUpdateRequest(BaseModel):
+    global_threshold: Optional[float] = None
+    category_thresholds: Optional[Dict[str, float]] = None
+    actor: str = Field(default="admin", description="Operator updating policy configuration")
+    reason: str = Field(..., description="Justification for policy update")
+
+@app.get("/api/v1/admin/config")
+def get_policy_config():
+    """
+    Returns active policy thresholds and routing rules (FR-9).
+    """
+    return config_manager.load_config()
+
+@app.put("/api/v1/admin/config")
+def update_policy_config(req: ConfigUpdateRequest):
+    """
+    Updates category thresholds without code modifications, logging to audit trail (FR-9).
+    """
+    updated = config_manager.update_thresholds(
+        global_thresh=req.global_threshold,
+        category_thresh=req.category_thresholds,
+        actor=req.actor,
+        reason=req.reason
+    )
+    return {
+        "status": "updated",
+        "config": updated
+    }
+
+@app.post("/api/v1/admin/evaluate/drift")
+def trigger_drift_check():
+    """
+    Runs automated evaluation on frozen gold set to detect metric degradation (FR-22).
+    """
+    model = get_model()
+    report = drift_evaluator.run_weekly_drift_check(model)
+    return report
+
+@app.get("/api/v1/admin/scorecard")
+def generate_pilot_scorecard():
+    """
+    Generates formal Pilot Scorecard Report assessing Go / Extend / Stop gates (PRD Section 10 & 11).
+    """
+    model = get_model()
+    scorecard = scorecard_generator.generate_scorecard(model=model)
+    return scorecard
+

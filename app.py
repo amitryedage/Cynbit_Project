@@ -5,10 +5,16 @@ import pandas as pd
 from kb_and_data import generate, KB_BY_ID, CATEGORIES, PRIORITIES
 from triage import TicketTriage
 from storage import PilotStorage
+from config import PolicyConfigManager
+from drift_evaluator import DriftEvaluator
+from scorecard import PilotScorecardGenerator
 
 st.set_page_config(page_title="Cybit Copilot - Stage 1 Pilot", layout="wide")
 
 storage = PilotStorage()
+config_mgr = PolicyConfigManager(storage=storage)
+drift_eval = DriftEvaluator(storage=storage, config_mgr=config_mgr)
+scorecard_gen = PilotScorecardGenerator(storage=storage, evaluator=drift_eval)
 
 @st.cache_resource
 def load_model():
@@ -19,7 +25,7 @@ model = load_model()
 # Top-level navigation
 page = st.sidebar.radio(
     "Navigation",
-    ["Triage Copilot (Assisted Pilot)", "Pilot Scorecard & Shadow Dashboard"],
+    ["Triage Copilot (Assisted Pilot)", "Pilot Scorecard & Shadow Dashboard", "Policy Config & Drift Monitor"],
     index=0
 )
 
@@ -210,7 +216,7 @@ if page == "Triage Copilot (Assisted Pilot)":
 # -----------------------------------------------------------------------------
 # Page 2: Pilot Scorecard & Shadow Dashboard (FR-19)
 # -----------------------------------------------------------------------------
-else:
+elif page == "Pilot Scorecard & Shadow Dashboard":
     st.title("Pilot Scorecard & Shadow Mode Dashboard")
     st.caption("Real-time operational KPIs, shadow mode silent evaluations, and compliance audit trail.")
 
@@ -250,3 +256,108 @@ else:
         st.dataframe(pd.DataFrame(audit_logs), use_container_width=True, hide_index=True)
     else:
         st.info("Audit log is currently empty.")
+
+# -----------------------------------------------------------------------------
+# Page 3: Policy Configuration & Drift Monitor (FR-9, FR-22, Section 10-11)
+# -----------------------------------------------------------------------------
+else:
+    st.title("Policy Configuration & Evaluation Governance")
+    st.caption("Dynamic threshold management (FR-9), weekly gold-set drift evaluation (FR-22), and sponsor scorecard generator.")
+
+    tab_scorecard, tab_drift, tab_config = st.tabs([
+        "Formal Pilot Scorecard", "Weekly Drift Evaluation", "Dynamic Policy Configuration"
+    ])
+
+    with tab_scorecard:
+        st.subheader("Stage 1 Pilot Scorecard & Rollout Gate Assessment")
+        st.caption("Evaluates active pilot metrics against agreed targets from PRD Section 10 and Section 11.")
+
+        if st.button("Generate Formal Pilot Scorecard", type="primary"):
+            scorecard = scorecard_gen.generate_scorecard(model=model)
+            st.session_state["active_scorecard"] = scorecard
+
+        if "active_scorecard" in st.session_state:
+            sc = st.session_state["active_scorecard"]
+            st.markdown(f"**Executive Recommendation:** `{sc['recommendation']}`")
+            st.info(sc["justification"])
+
+            # Render gate table
+            gate_df = pd.DataFrame(sc["gates"])
+            rename_map = {
+                "id": "Gate ID",
+                "name": "Target Criterion",
+                "type": "Metric Type",
+                "target": "Agreed Target",
+                "measured": "Measured Value",
+                "passed": "Gate Status"
+            }
+            gate_df["passed"] = gate_df["passed"].apply(lambda x: "PASSED" if x else "PENDING")
+            st.dataframe(
+                gate_df.rename(columns=rename_map),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.caption("Formal report written to pilot_scorecard_report.md for executive review.")
+
+    with tab_drift:
+        st.subheader("Automated Weekly Drift Check (FR-22)")
+        st.caption("Validates performance across frozen hand-written dev set and blind test set.")
+
+        if st.button("Run Weekly Gold-Set Drift Evaluation"):
+            report = drift_eval.run_weekly_drift_check(model=model)
+            st.session_state["active_drift_report"] = report
+
+        if "active_drift_report" in st.session_state:
+            rep = st.session_state["active_drift_report"]
+            status_label = rep["status"]
+            if status_label == "PASSED":
+                st.success("Drift Check Status: PASSED (All metrics within approved tolerances)")
+            else:
+                st.warning(f"Drift Check Status: {status_label}")
+
+            b_eval = rep["blind_set_evaluation"]
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            m_col1.metric("Blind Set Accuracy", f"{b_eval['category_accuracy'] * 100:.1f}%")
+            m_col2.metric("P1 Outage Recall", f"{b_eval['p1_recall'] * 100:.1f}%")
+            m_col3.metric("Runbook Hit@3", f"{b_eval['kb_hit3_hybrid'] * 100:.1f}%")
+            m_col4.metric("Security Miss Rate", f"{b_eval['security_miss_rate'] * 100:.1f}%")
+
+            if rep["active_alerts"]:
+                st.markdown("**Active Performance Degradation Alerts:**")
+                st.dataframe(pd.DataFrame(rep["active_alerts"]), use_container_width=True, hide_index=True)
+            else:
+                st.info("No metric degradation or drift detected on gold sets.")
+
+    with tab_config:
+        st.subheader("Dynamic Category Thresholds (FR-9)")
+        st.caption("Adjust confidence thresholds per category without modifying code. Changes are logged to the audit trail.")
+
+        current_cfg = config_mgr.load_config()
+        cat_thresh = current_cfg.get("category_thresholds", {})
+
+        conf_cols = st.columns(2)
+        new_thresholds = {}
+        for i, cat in enumerate(CATEGORIES):
+            col = conf_cols[i % 2]
+            val = cat_thresh.get(cat, 0.45)
+            new_val = col.slider(
+                f"Threshold: {cat}",
+                min_value=0.20,
+                max_value=0.80,
+                value=float(val),
+                step=0.05,
+                key=f"thresh_{cat}"
+            )
+            new_thresholds[cat] = new_val
+
+        admin_user = st.text_input("Authorising Admin Username", value="service_desk_lead")
+        reason_text = st.text_input("Operational Justification", value="Routine threshold calibration for pilot")
+
+        if st.button("Save Policy Configuration", type="primary"):
+            config_mgr.update_thresholds(
+                category_thresh=new_thresholds,
+                actor=admin_user,
+                reason=reason_text
+            )
+            st.success("Configuration successfully saved and logged to audit trail.")
