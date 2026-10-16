@@ -1,4 +1,4 @@
-# AI Service Desk Triage Copilot - Stage 1 & Stage 2 Pilot
+# AI Service Desk Triage Copilot - Stage 1 through Stage 4 Complete Pilot
 from typing import Optional
 import streamlit as st
 import pandas as pd
@@ -11,8 +11,12 @@ from scorecard import PilotScorecardGenerator
 from advisory_models import SAMPLE_ADVISORIES, SAMPLE_CLIENTS
 from advisory_matcher import AdvisoryMatcher
 from advisory_generator import AdvisoryDigestGenerator
+from soc_models import SAMPLE_ATTACK_ALERTS
+from soc_analyzer import SocAnalyzer
+from qbr_models import SAMPLE_QBR_DATA
+from qbr_generator import QBRGenerator
 
-st.set_page_config(page_title="Cybit Copilot - Stage 1 & Stage 2", layout="wide")
+st.set_page_config(page_title="Cybit Copilot - Stage 1 to 4 Pilot", layout="wide")
 
 storage = PilotStorage()
 config_mgr = PolicyConfigManager(storage=storage)
@@ -20,6 +24,8 @@ drift_eval = DriftEvaluator(storage=storage, config_mgr=config_mgr)
 scorecard_gen = PilotScorecardGenerator(storage=storage, evaluator=drift_eval)
 advisory_matcher = AdvisoryMatcher()
 advisory_generator = AdvisoryDigestGenerator(storage=storage)
+soc_analyzer = SocAnalyzer(storage=storage)
+qbr_generator = QBRGenerator(storage=storage)
 
 @st.cache_resource
 def load_model():
@@ -31,8 +37,10 @@ model = load_model()
 page = st.sidebar.radio(
     "Navigation",
     [
-        "Triage Copilot (Assisted Pilot)",
+        "Triage Copilot (Stage 1)",
         "Security Advisory Digest (Stage 2)",
+        "SOC Alert & ATT&CK Mapping (Stage 3)",
+        "Executive QBR Service Reports (Stage 4)",
         "Pilot Scorecard & Shadow Dashboard",
         "Policy Config & Drift Monitor"
     ],
@@ -52,9 +60,9 @@ EXAMPLES = {
 }
 
 # -----------------------------------------------------------------------------
-# Page 1: Triage Copilot (Assisted Pilot Mode)
+# Page 1: Triage Copilot (Stage 1 Assisted Pilot Mode)
 # -----------------------------------------------------------------------------
-if page == "Triage Copilot (Assisted Pilot)":
+if page == "Triage Copilot (Stage 1)":
     st.title("AI Service Desk Triage Copilot - Stage 1 Pilot")
     st.caption(
         "Automated triage, hybrid runbook retrieval, PII redaction (FR-5), and prompt-injection defense (FR-14). "
@@ -327,7 +335,153 @@ elif page == "Security Advisory Digest (Stage 2)":
                     st.success(f"Digest successfully approved and stamped into audit trail by {analyst_name}.")
 
 # -----------------------------------------------------------------------------
-# Page 3: Pilot Scorecard & Shadow Dashboard (FR-19)
+# Page 3: SOC Alert Summarisation & MITRE ATT&CK Mapping (Stage 3 - PRD Section 15)
+# -----------------------------------------------------------------------------
+elif page == "SOC Alert & ATT&CK Mapping (Stage 3)":
+    st.title("SOC Alert Summarisation & MITRE ATT&CK Mapping - Stage 3")
+    st.caption(
+        "Correlates raw EDR/SIEM telemetry alerts into unified multi-stage incidents, "
+        "identifies MITRE ATT&CK techniques across the kill chain, and drafts containment procedures."
+    )
+
+    t_col1, t_col2 = st.columns([1, 1])
+    with t_col1:
+        st.subheader("Raw Ingested Security Telemetry Stream")
+        telemetry_df = pd.DataFrame(SAMPLE_ATTACK_ALERTS)[["alert_id", "timestamp", "source", "event_type", "host"]]
+        st.dataframe(telemetry_df, use_container_width=True, hide_index=True)
+
+        correlate_btn = st.button("Correlate Alerts & Map Kill-Chain", type="primary")
+
+    if correlate_btn or "active_soc_incident" in st.session_state:
+        if correlate_btn:
+            incident_obj = soc_analyzer.correlate_and_summarize(SAMPLE_ATTACK_ALERTS, client_name="Acme Manufacturing UK")
+            st.session_state["active_soc_incident"] = incident_obj
+
+        active_inc = st.session_state["active_soc_incident"]
+
+        with t_col2:
+            st.subheader(f"Incident: {active_inc.incident_id}")
+            inc_m1, inc_m2, inc_m3 = st.columns(3)
+            inc_m1.metric("Severity", active_inc.severity)
+            inc_m2.metric("Primary Tactic", active_inc.primary_tactic)
+            inc_m3.metric("Correlated Alerts", active_inc.alerts_count)
+
+            st.markdown(f"**Target Host:** `{active_inc.affected_host}` | **Target Account:** `{active_inc.affected_user}`")
+            status_style = st.warning if active_inc.status == "PENDING_ANALYST_TRIAGE" else st.success
+            status_style(f"Incident Triage Status: {active_inc.status}")
+
+        st.divider()
+
+        # Attack chain narrative & MITRE mapping
+        st.subheader("MITRE ATT&CK Kill-Chain Mapping & Containment Procedures")
+        tech_df = pd.DataFrame(active_inc.mapped_techniques)
+        st.dataframe(tech_df.rename(columns={
+            "technique_id": "Technique ID",
+            "technique_name": "Technique Name",
+            "tactic": "ATT&CK Tactic",
+            "containment": "Recommended Containment Procedure"
+        }), use_container_width=True, hide_index=True)
+
+        st.markdown("**Correlated Kill-Chain Narrative:**")
+        st.code(active_inc.attack_narrative, language=None)
+
+        st.divider()
+        st.subheader("SOC Analyst Containment Sign-Off")
+        soc_c1, soc_c2, soc_c3 = st.columns([1, 1, 1])
+        with soc_c1:
+            analyst_user = st.text_input("Analyst ID", value="soc_lead_alex")
+        with soc_c2:
+            triage_action = st.selectbox("Action", ["CONTAINED", "ESCALATED_TIER_2"], format_func=lambda x: "Execute Containment (Host Isolated)" if x == "CONTAINED" else "Escalate to Tier 2 Digital Forensics")
+        with soc_c3:
+            triage_notes = st.text_input("Incident Notes", value="Workstation isolated via EDR; credentials revoked.")
+
+        if st.button("Submit SOC Containment Sign-Off"):
+            triaged_inc = soc_analyzer.triage_incident(
+                active_inc,
+                analyst_id=analyst_user,
+                action=triage_action,
+                notes=triage_notes
+            )
+            st.session_state["active_soc_incident"] = triaged_inc
+            st.success(f"Incident successfully updated to {triage_action} and recorded in audit log.")
+
+# -----------------------------------------------------------------------------
+# Page 4: Executive QBR Service Reports (Stage 4 - PRD Section 15)
+# -----------------------------------------------------------------------------
+elif page == "Executive QBR Service Reports (Stage 4)":
+    st.title("Executive Quarterly Business Review (QBR) Generator - Stage 4")
+    st.caption(
+        "Synthesizes multi-department managed service performance metrics, infrastructure health, "
+        "and cybersecurity telemetry into executive QBR reports with Service Director sign-off."
+    )
+
+    qbr_c1, qbr_c2 = st.columns([1, 2])
+    with qbr_c1:
+        st.subheader("Account Selection")
+        client_options = list(SAMPLE_QBR_DATA.keys())
+        selected_client_id = st.selectbox("Select Managed Account", client_options, format_func=lambda cid: f"{SAMPLE_QBR_DATA[cid]['client_name']} ({SAMPLE_QBR_DATA[cid]['quarter']})")
+        gen_qbr_btn = st.button("Compile & Draft Executive QBR", type="primary")
+
+    if gen_qbr_btn or f"qbr_{selected_client_id}" in st.session_state:
+        qbr_key = f"qbr_{selected_client_id}"
+        if gen_qbr_btn:
+            doc = qbr_generator.generate_qbr(client_id=selected_client_id)
+            st.session_state[qbr_key] = doc
+
+        active_qbr = st.session_state[qbr_key]
+        sd_kpi = active_qbr.service_desk_kpis
+        infra_kpi = active_qbr.infrastructure_kpis
+        sec_kpi = active_qbr.security_kpis
+
+        with qbr_c2:
+            st.subheader(f"QBR: {active_qbr.client_name} ({active_qbr.reporting_quarter})")
+            q_m1, q_m2, q_m3, q_m4 = st.columns(4)
+            q_m1.metric("SLA Compliance", f"{sd_kpi.sla_compliance_rate * 100:.1f}%")
+            q_m2.metric("Median Response", f"{sd_kpi.median_first_response_mins} mins")
+            q_m3.metric("Backup Success", f"{infra_kpi.backup_success_rate * 100:.1f}%")
+            q_m4.metric("Phishing Blocked", sec_kpi.phishing_emails_blocked)
+
+            status_style = st.info if active_qbr.status == "DRAFT_PENDING_DIRECTOR_REVIEW" else st.success
+            status_style(f"QBR Document Status: {active_qbr.status}")
+
+        st.divider()
+
+        # Detailed Executive Sections
+        st.subheader("Executive Narrative")
+        st.write(active_qbr.executive_summary)
+
+        st.divider()
+        chart_c1, chart_c2 = st.columns(2)
+        with chart_c1:
+            st.subheader("Quarterly Ticket Distribution by Category")
+            st.bar_chart(pd.Series(sd_kpi.top_categories).sort_values(ascending=False))
+        with chart_c2:
+            st.subheader("Recommended Strategic IT Initiatives")
+            init_df = pd.DataFrame([i.dict() for i in active_qbr.strategic_initiatives])
+            st.dataframe(init_df.rename(columns={
+                "title": "Initiative Title",
+                "target_timeline": "Target Timeline",
+                "business_impact": "Business Impact",
+                "estimated_budget": "Estimated Investment"
+            }), use_container_width=True, hide_index=True)
+
+        st.caption(f"Formal report exported to: QBR_Report_{active_qbr.client_id}_{active_qbr.reporting_quarter.replace(' ', '_')}.md")
+
+        st.divider()
+        st.subheader("Service Director Sign-Off")
+        dir_c1, dir_c2 = st.columns(2)
+        with dir_c1:
+            director_user = st.text_input("Reviewing Service Director", value="service_director_mark")
+        with dir_c2:
+            director_notes = st.text_input("Director Review Notes", value="Approved for executive presentation to client leadership.")
+
+        if st.button("Approve QBR for Client Presentation"):
+            approved_qbr = qbr_generator.approve_qbr(active_qbr, director_id=director_user, notes=director_notes)
+            st.session_state[qbr_key] = approved_qbr
+            st.success("QBR approved and stamped for presentation.")
+
+# -----------------------------------------------------------------------------
+# Page 5: Pilot Scorecard & Shadow Dashboard (FR-19)
 # -----------------------------------------------------------------------------
 elif page == "Pilot Scorecard & Shadow Dashboard":
     st.title("Pilot Scorecard & Shadow Mode Dashboard")
@@ -371,7 +525,7 @@ elif page == "Pilot Scorecard & Shadow Dashboard":
         st.info("Audit log is currently empty.")
 
 # -----------------------------------------------------------------------------
-# Page 4: Policy Configuration & Drift Monitor (FR-9, FR-22, Section 10-11)
+# Page 6: Policy Configuration & Drift Monitor (FR-9, FR-22, Section 10-11)
 # -----------------------------------------------------------------------------
 else:
     st.title("Policy Configuration & Evaluation Governance")

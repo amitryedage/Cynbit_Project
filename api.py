@@ -364,4 +364,85 @@ def approve_client_advisory_digest(req: ApproveDigestRequest):
     approved = advisory_generator.approve_digest(req.digest, analyst_id=req.analyst_id, notes=req.notes)
     return approved.dict()
 
+# -----------------------------------------------------------------------------
+# Stage 3: SOC Alert Summarisation & MITRE ATT&CK Mapping (PRD Section 15)
+# -----------------------------------------------------------------------------
+from soc_models import RawSecurityAlert, CorrelatedIncident, SAMPLE_ATTACK_ALERTS
+from soc_analyzer import SocAnalyzer
+
+soc_analyzer = SocAnalyzer(storage=storage)
+
+class CorrelateAlertsRequest(BaseModel):
+    alerts: List[Dict[str, Any]] = Field(default=SAMPLE_ATTACK_ALERTS)
+    client_name: str = Field(default="Acme Manufacturing UK")
+
+class TriageIncidentRequest(BaseModel):
+    incident: CorrelatedIncident
+    analyst_id: str
+    action: str = Field(default="CONTAINED", description="Action: CONTAINED or ESCALATED_TIER_2")
+    notes: Optional[str] = ""
+
+@app.get("/api/v3/soc/sample-alerts")
+def get_sample_soc_alerts():
+    """Returns sample multi-stage telemetry alerts for demonstration."""
+    return SAMPLE_ATTACK_ALERTS
+
+@app.post("/api/v3/soc/correlate")
+def correlate_soc_alerts(req: CorrelateAlertsRequest):
+    """
+    Correlates raw EDR/SIEM alerts, maps ATT&CK techniques, and drafts executive narrative.
+    """
+    incident = soc_analyzer.correlate_and_summarize(req.alerts, client_name=req.client_name)
+    return incident.dict()
+
+@app.post("/api/v3/soc/triage")
+def triage_soc_incident(req: TriageIncidentRequest):
+    """
+    Analyst sign-off and containment execution for correlated security incident.
+    """
+    triaged = soc_analyzer.triage_incident(req.incident, analyst_id=req.analyst_id, action=req.action, notes=req.notes)
+    return triaged.dict()
+
+# -----------------------------------------------------------------------------
+# Stage 4: Automated Service Reports & QBR Drafts (PRD Section 15)
+# -----------------------------------------------------------------------------
+from qbr_models import QBRDocument, SAMPLE_QBR_DATA
+from qbr_generator import QBRGenerator
+
+qbr_generator = QBRGenerator(storage=storage)
+
+class GenerateQBRRequest(BaseModel):
+    client_id: str = Field(..., description="Client identifier (e.g. CLI-ACME)")
+    custom_metrics: Optional[Dict[str, Any]] = None
+
+class ApproveQBRRequest(BaseModel):
+    qbr_doc: QBRDocument
+    director_id: str
+    notes: Optional[str] = ""
+
+@app.get("/api/v4/qbr/clients")
+def list_qbr_available_clients():
+    """Returns managed clients with quarterly reporting datasets."""
+    return list(SAMPLE_QBR_DATA.keys())
+
+@app.post("/api/v4/qbr/generate")
+def generate_qbr_report(req: GenerateQBRRequest):
+    """
+    Synthesizes executive Quarterly Business Review document and exports Markdown report.
+    """
+    try:
+        doc = qbr_generator.generate_qbr(client_id=req.client_id, custom_data=req.custom_metrics)
+        return doc.dict()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/api/v4/qbr/approve")
+def approve_qbr_report(req: ApproveQBRRequest):
+    """
+    Service Director review and sign-off for client QBR presentation.
+    """
+    approved = qbr_generator.approve_qbr(req.qbr_doc, director_id=req.director_id, notes=req.notes)
+    return approved.dict()
+
+
 

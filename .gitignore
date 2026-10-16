@@ -20,6 +20,10 @@ confusion_matrix_*.png
 .pytest_cache/
 .coverage
 htmlcov/
+pilot_scorecard_report.md
+QBR_Report_*.md
+*.db
+*.sqlite3
 
 # ==============================================================================
 # Python & Virtual Environments (uv, venv)
