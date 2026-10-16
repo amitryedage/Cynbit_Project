@@ -1,6 +1,6 @@
 [project]
 name = "cybit-ticket-triage"
-version = "0.2.0"
+version = "0.3.0"
 description = "AI Service-Desk Copilot for Cybit (Stage 1 Pilot)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,9 +13,15 @@ dependencies = [
     "streamlit>=1.30.0",
     "anthropic>=0.30.0",
     "pydantic>=2.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "httpx>=0.24.0",
 ]
 
 [project.optional-dependencies]
+embeddings = [
+    "sentence-transformers>=2.2.0",
+]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
