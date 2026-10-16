@@ -294,3 +294,74 @@ def generate_pilot_scorecard():
     scorecard = scorecard_generator.generate_scorecard(model=model)
     return scorecard
 
+# -----------------------------------------------------------------------------
+# Stage 2: Security Advisory Digest Endpoints (PRD Section 15)
+# -----------------------------------------------------------------------------
+from advisory_models import SAMPLE_ADVISORIES, SAMPLE_CLIENTS, AdvisoryDigest
+from advisory_matcher import AdvisoryMatcher
+from advisory_generator import AdvisoryDigestGenerator
+
+advisory_matcher = AdvisoryMatcher()
+advisory_generator = AdvisoryDigestGenerator(storage=storage)
+
+class MatchAdvisoryRequest(BaseModel):
+    advisory_id: str = Field(..., description="ID of vulnerability advisory (e.g. ADV-2026-001)")
+
+class GenerateDigestRequest(BaseModel):
+    advisory_id: str
+    client_id: str
+
+class ApproveDigestRequest(BaseModel):
+    digest: AdvisoryDigest
+    analyst_id: str
+    notes: Optional[str] = ""
+
+@app.get("/api/v2/advisories")
+def list_security_advisories():
+    """Returns active vulnerability threat advisories and CVE bulletins."""
+    return SAMPLE_ADVISORIES
+
+@app.get("/api/v2/clients")
+def list_managed_clients():
+    """Returns managed client profiles and tech stack inventories."""
+    return SAMPLE_CLIENTS
+
+@app.post("/api/v2/advisories/match")
+def match_advisory_against_clients(req: MatchAdvisoryRequest):
+    """
+    Matches a threat advisory against all client asset inventories and scores contextual risk.
+    """
+    adv = next((a for a in SAMPLE_ADVISORIES if a["advisory_id"] == req.advisory_id), None)
+    if not adv:
+        raise HTTPException(status_code=404, detail=f"Advisory {req.advisory_id} not found")
+    matches = advisory_matcher.match_advisory_across_all_clients(adv, SAMPLE_CLIENTS)
+    return {
+        "advisory_id": req.advisory_id,
+        "cve_id": adv["cve_id"],
+        "matches": [m.dict() for m in matches]
+    }
+
+@app.post("/api/v2/advisories/digest")
+def generate_client_advisory_digest(req: GenerateDigestRequest):
+    """
+    Generates a client-tailored executive security advisory digest for an affected client.
+    """
+    adv = next((a for a in SAMPLE_ADVISORIES if a["advisory_id"] == req.advisory_id), None)
+    if not adv:
+        raise HTTPException(status_code=404, detail=f"Advisory {req.advisory_id} not found")
+    client = next((c for c in SAMPLE_CLIENTS if c["client_id"] == req.client_id), None)
+    if not client:
+        raise HTTPException(status_code=404, detail=f"Client {req.client_id} not found")
+    match_res = advisory_matcher.evaluate_client(client, adv)
+    digest = advisory_generator.generate_digest(adv, client, match_res)
+    return digest.dict()
+
+@app.post("/api/v2/advisories/digest/approve")
+def approve_client_advisory_digest(req: ApproveDigestRequest):
+    """
+    Security analyst sign-off for client advisory digest (FR-8 human approval).
+    """
+    approved = advisory_generator.approve_digest(req.digest, analyst_id=req.analyst_id, notes=req.notes)
+    return approved.dict()
+
+

@@ -1,4 +1,4 @@
-# AI Service Desk Triage Copilot - Stage 1 Pilot
+# AI Service Desk Triage Copilot - Stage 1 & Stage 2 Pilot
 from typing import Optional
 import streamlit as st
 import pandas as pd
@@ -8,13 +8,18 @@ from storage import PilotStorage
 from config import PolicyConfigManager
 from drift_evaluator import DriftEvaluator
 from scorecard import PilotScorecardGenerator
+from advisory_models import SAMPLE_ADVISORIES, SAMPLE_CLIENTS
+from advisory_matcher import AdvisoryMatcher
+from advisory_generator import AdvisoryDigestGenerator
 
-st.set_page_config(page_title="Cybit Copilot - Stage 1 Pilot", layout="wide")
+st.set_page_config(page_title="Cybit Copilot - Stage 1 & Stage 2", layout="wide")
 
 storage = PilotStorage()
 config_mgr = PolicyConfigManager(storage=storage)
 drift_eval = DriftEvaluator(storage=storage, config_mgr=config_mgr)
 scorecard_gen = PilotScorecardGenerator(storage=storage, evaluator=drift_eval)
+advisory_matcher = AdvisoryMatcher()
+advisory_generator = AdvisoryDigestGenerator(storage=storage)
 
 @st.cache_resource
 def load_model():
@@ -25,7 +30,12 @@ model = load_model()
 # Top-level navigation
 page = st.sidebar.radio(
     "Navigation",
-    ["Triage Copilot (Assisted Pilot)", "Pilot Scorecard & Shadow Dashboard", "Policy Config & Drift Monitor"],
+    [
+        "Triage Copilot (Assisted Pilot)",
+        "Security Advisory Digest (Stage 2)",
+        "Pilot Scorecard & Shadow Dashboard",
+        "Policy Config & Drift Monitor"
+    ],
     index=0
 )
 
@@ -214,7 +224,110 @@ if page == "Triage Copilot (Assisted Pilot)":
             st.success(f"Feedback recorded in pilot database (Feedback ID: {fb_id}). Pilot metrics updated.")
 
 # -----------------------------------------------------------------------------
-# Page 2: Pilot Scorecard & Shadow Dashboard (FR-19)
+# Page 2: Security Advisory Digest (Stage 2 - PRD Section 15)
+# -----------------------------------------------------------------------------
+elif page == "Security Advisory Digest (Stage 2)":
+    st.title("Client-Facing Security Advisory Digest - Stage 2")
+    st.caption(
+        "Matches active threat intelligence and CVE bulletins against client technology stack inventories. "
+        "Synthesizes tailored executive digests with mandatory analyst sign-off before dispatch."
+    )
+
+    adv_col, match_col = st.columns([1, 1])
+    
+    with adv_col:
+        st.subheader("Active Threat Intelligence Bulletins")
+        adv_labels = [f"{a['cve_id']} - {a['vendor']} ({a['severity']})" for a in SAMPLE_ADVISORIES]
+        selected_idx = st.selectbox("Select Security Advisory Bulletin", range(len(adv_labels)), format_func=lambda i: adv_labels[i])
+        selected_adv = SAMPLE_ADVISORIES[selected_idx]
+
+        m_c1, m_c2, m_c3 = st.columns(3)
+        m_c1.metric("CVE Identifier", selected_adv["cve_id"])
+        m_c2.metric("CVSS Base Score", f"{selected_adv['cvss_score']} / 10.0")
+        m_c3.metric("In-the-Wild Exploitation", "YES (Confirmed)" if selected_adv["is_actively_exploited"] else "No Activity")
+
+        st.markdown(f"**Title:** {selected_adv['title']}")
+        st.markdown(f"**Summary:** {selected_adv['summary']}")
+        st.markdown(f"**Affected Products:** {', '.join(selected_adv['affected_products'])}")
+        
+        with st.expander("Technical Vulnerability Details"):
+            st.write(selected_adv["technical_details"])
+            st.markdown("**Vendor Remediation Steps:**")
+            for step in selected_adv["remediation_steps"]:
+                st.markdown(f"- {step}")
+
+    with match_col:
+        st.subheader("Managed Client Tech Stack Exposure Matrix")
+        matches = advisory_matcher.match_advisory_across_all_clients(selected_adv, SAMPLE_CLIENTS)
+        
+        match_table = []
+        for m in matches:
+            match_table.append({
+                "Client Name": m.client_name,
+                "Impacted?": "YES" if m.is_affected else "No",
+                "Contextual Risk": f"{m.risk_score} / 10.0",
+                "Urgency Level": m.urgency,
+                "Exposed Assets": ", ".join(m.affected_assets) if m.affected_assets else "None"
+            })
+        st.dataframe(pd.DataFrame(match_table), use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Client-Tailored Digest Synthesis Section
+    st.subheader("Client-Tailored Advisory Digest Generator")
+    affected_matches = [m for m in matches if m.is_affected]
+    
+    if not affected_matches:
+        st.info("None of the managed clients in the inventory are exposed to this vulnerability bulletin.")
+    else:
+        dig_c1, dig_c2 = st.columns([1, 2])
+        with dig_c1:
+            target_client_idx = st.selectbox(
+                "Select Impacted Client for Advisory Synthesis",
+                range(len(affected_matches)),
+                format_func=lambda i: f"{affected_matches[i].client_name} (Risk: {affected_matches[i].risk_score}/10.0)"
+            )
+            target_match = affected_matches[target_client_idx]
+            target_client = next(c for c in SAMPLE_CLIENTS if c["client_id"] == target_match.client_id)
+            
+            synth_btn = st.button("Synthesize Tailored Client Digest", type="primary")
+
+        if synth_btn or f"digest_{target_match.client_id}_{selected_adv['cve_id']}" in st.session_state:
+            session_key = f"digest_{target_match.client_id}_{selected_adv['cve_id']}"
+            if synth_btn:
+                digest_obj = advisory_generator.generate_digest(selected_adv, target_client, target_match)
+                st.session_state[session_key] = digest_obj
+
+            active_digest = st.session_state[session_key]
+
+            with dig_c2:
+                status_box = st.info if active_digest.status == "DRAFT_PENDING_ANALYST_APPROVAL" else st.success
+                status_box(f"Digest Status: {active_digest.status} | Target: {active_digest.client_name} ({active_digest.cve_id})")
+
+                st.markdown(f"**Executive Summary:**\n{active_digest.executive_summary}")
+                st.markdown(f"**Client Environment Impact:**\n{active_digest.client_impact}")
+                st.markdown(f"**Actions Taken by Cybit SOC:**\n{active_digest.cybit_action_taken}")
+                st.markdown(f"**Recommended Client Action:**\n{active_digest.client_action_required}")
+
+                st.divider()
+                st.subheader("Security Analyst Sign-Off (Human-in-the-Loop)")
+                sign_c1, sign_c2 = st.columns(2)
+                with sign_c1:
+                    analyst_name = st.text_input("Reviewing Analyst Username", value="soc_analyst_dan")
+                with sign_c2:
+                    analyst_notes = st.text_input("Review Notes", value="Verified asset version and intrusion prevention status.")
+
+                if st.button("Approve Digest for Client Dispatch"):
+                    approved_digest = advisory_generator.approve_digest(
+                        active_digest,
+                        analyst_id=analyst_name,
+                        notes=analyst_notes
+                    )
+                    st.session_state[session_key] = approved_digest
+                    st.success(f"Digest successfully approved and stamped into audit trail by {analyst_name}.")
+
+# -----------------------------------------------------------------------------
+# Page 3: Pilot Scorecard & Shadow Dashboard (FR-19)
 # -----------------------------------------------------------------------------
 elif page == "Pilot Scorecard & Shadow Dashboard":
     st.title("Pilot Scorecard & Shadow Mode Dashboard")
@@ -258,7 +371,7 @@ elif page == "Pilot Scorecard & Shadow Dashboard":
         st.info("Audit log is currently empty.")
 
 # -----------------------------------------------------------------------------
-# Page 3: Policy Configuration & Drift Monitor (FR-9, FR-22, Section 10-11)
+# Page 4: Policy Configuration & Drift Monitor (FR-9, FR-22, Section 10-11)
 # -----------------------------------------------------------------------------
 else:
     st.title("Policy Configuration & Evaluation Governance")
