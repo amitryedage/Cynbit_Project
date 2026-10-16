@@ -101,6 +101,17 @@ advisory_generator = AdvisoryDigestGenerator(storage=storage)
 soc_analyzer = SocAnalyzer(storage=storage)
 qbr_generator = QBRGenerator(storage=storage)
 
+# Ensure result directory exists and contains latest evaluation artifacts
+import os
+import shutil
+os.makedirs("result", exist_ok=True)
+for _artifact in ["confusion_matrix_blind_test_set.png", "confusion_matrix_hand_written_dev_set.png", "results.json", "eval_output.txt"]:
+    if os.path.exists(_artifact) and not os.path.exists(os.path.join("result", _artifact)):
+        try:
+            shutil.copy(_artifact, os.path.join("result", _artifact))
+        except Exception:
+            pass
+
 @st.cache_resource
 def load_model():
     return TicketTriage().fit(generate(3000, seed=42))

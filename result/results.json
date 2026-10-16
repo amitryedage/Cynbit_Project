@@ -1,0 +1,65 @@
+{
+  "synthetic_holdout": {
+    "n": 600,
+    "category_accuracy": 0.9733333333333334,
+    "category_macro_f1": 0.9737137626654458,
+    "keyword_baseline_accuracy": 0.7133333333333334,
+    "majority_baseline_accuracy": 0.11333333333333333,
+    "priority_accuracy": 0.83,
+    "priority_within_one_level": 0.9583333333333334,
+    "p1_recall": 0.7532467532467533,
+    "kb_hit_at1_tfidf_only": 0.6283333333333333,
+    "kb_hit_at3_tfidf_only": 0.7966666666666666,
+    "kb_hit_at1_hybrid": 0.9266666666666666,
+    "kb_hit_at3_hybrid": 0.9933333333333333,
+    "category_accuracy_95ci": [
+      0.957,
+      0.984
+    ],
+    "false_p1_rate": 0.016666666666666666,
+    "security_override_false_positive_rate": 0.0,
+    "security_miss_rate": 0.030303030303030304
+  },
+  "hand_written_dev_set": {
+    "n": 40,
+    "category_accuracy": 0.75,
+    "category_macro_f1": 0.7428066378066378,
+    "keyword_baseline_accuracy": 0.675,
+    "majority_baseline_accuracy": 0.1,
+    "priority_accuracy": 0.475,
+    "priority_within_one_level": 0.9,
+    "p1_recall": 0.8,
+    "kb_hit_at1_tfidf_only": 0.5,
+    "kb_hit_at3_tfidf_only": 0.7,
+    "kb_hit_at1_hybrid": 0.7,
+    "kb_hit_at3_hybrid": 0.8,
+    "category_accuracy_95ci": [
+      0.598,
+      0.858
+    ],
+    "false_p1_rate": 0.1,
+    "security_override_false_positive_rate": 0.0,
+    "security_miss_rate": 0.0
+  },
+  "blind_test_set": {
+    "n": 30,
+    "category_accuracy": 0.8333333333333334,
+    "category_macro_f1": 0.8374603174603175,
+    "keyword_baseline_accuracy": 0.5,
+    "majority_baseline_accuracy": 0.16666666666666666,
+    "priority_accuracy": 0.6333333333333333,
+    "priority_within_one_level": 0.9666666666666667,
+    "p1_recall": 0.8,
+    "kb_hit_at1_tfidf_only": 0.4666666666666667,
+    "kb_hit_at3_tfidf_only": 0.5666666666666667,
+    "kb_hit_at1_hybrid": 0.6666666666666666,
+    "kb_hit_at3_hybrid": 0.8666666666666667,
+    "category_accuracy_95ci": [
+      0.664,
+      0.927
+    ],
+    "false_p1_rate": 0.03333333333333333,
+    "security_override_false_positive_rate": 0.0,
+    "security_miss_rate": 0.0
+  }
+}

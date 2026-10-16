@@ -69,8 +69,11 @@ if __name__ == "__main__":
             for i in range(10):
                 for j in range(10):
                     if cm[i, j]: ax.text(j, i, cm[i, j], ha="center", va="center", color="white" if cm[i, j] > cm.max() / 2 else "black")
-            ax.set_title(f"Category confusion matrix ({name})"); ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
-            plt.tight_layout(); plt.savefig(f"confusion_matrix_{name}.png", dpi=140)
+            import os
+            os.makedirs("result", exist_ok=True)
+            plt.tight_layout(); plt.savefig(os.path.join("result", f"confusion_matrix_{name}.png"), dpi=140)
             for t, a, b in zip(ds, yc, pc):
                 if a != b: print("MISS:", t["text"][:70], "| actual", a, "| pred", b)
-    json.dump(res, open("results.json", "w"), indent=2)
+    import os
+    os.makedirs("result", exist_ok=True)
+    json.dump(res, open(os.path.join("result", "results.json"), "w"), indent=2)

@@ -368,6 +368,14 @@ Cynbit_Project/
 |
 |-- api.py                      # FastAPI production REST API and webhook service
 |-- app.py                      # Streamlit interactive pilot console (6 views)
+|-- result/                     # Evaluation outputs, metrics JSON, and confusion matrices
+|   |-- README.md
+|   |-- results.json
+|   |-- benchmark_results.json
+|   |-- eval_output.txt
+|   |-- confusion_matrix_blind_test_set.png
+|   |-- confusion_matrix_hand_written_dev_set.png
+|   `-- pilot_scorecard_report.md
 |
 `-- tests/                      # Automated test suites (excluded from git tracking)
     |-- test_redaction.py

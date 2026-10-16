@@ -127,9 +127,12 @@ def run_benchmark():
         print(f"  KB Hit@1 [Dense]:       {hit1_dense * 100:.1f}%  |  Hit@3 [Dense]:  {hit3_dense * 100:.1f}%")
         print(f"  KB Hit@1 [Hybrid]:      {hit1_hybrid * 100:.1f}%  |  Hit@3 [Hybrid]: {hit3_hybrid * 100:.1f}%")
 
-    with open("benchmark_results.json", "w") as f:
+    import os
+    os.makedirs("result", exist_ok=True)
+    out_path = os.path.join("result", "benchmark_results.json")
+    with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
-    print("\nBenchmark results saved to benchmark_results.json")
+    print(f"\nBenchmark results saved to {out_path}")
 
 if __name__ == "__main__":
     run_benchmark()

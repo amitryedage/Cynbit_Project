@@ -1,0 +1,47 @@
+{
+  "Synthetic Holdout": {
+    "n": 600,
+    "category_accuracy": 0.973,
+    "category_macro_f1": 0.974,
+    "keyword_baseline": 0.713,
+    "priority_accuracy": 0.83,
+    "priority_within_one": 0.958,
+    "p1_recall": 0.753,
+    "hit1_sparse": 0.628,
+    "hit3_sparse": 0.797,
+    "hit1_dense": 0.852,
+    "hit3_dense": 0.945,
+    "hit1_hybrid": 0.927,
+    "hit3_hybrid": 0.993
+  },
+  "Hand-written Dev Set": {
+    "n": 40,
+    "category_accuracy": 0.75,
+    "category_macro_f1": 0.743,
+    "keyword_baseline": 0.675,
+    "priority_accuracy": 0.475,
+    "priority_within_one": 0.9,
+    "p1_recall": 0.8,
+    "hit1_sparse": 0.5,
+    "hit3_sparse": 0.7,
+    "hit1_dense": 0.625,
+    "hit3_dense": 0.775,
+    "hit1_hybrid": 0.7,
+    "hit3_hybrid": 0.8
+  },
+  "Blind Test Set": {
+    "n": 30,
+    "category_accuracy": 0.833,
+    "category_macro_f1": 0.837,
+    "keyword_baseline": 0.5,
+    "priority_accuracy": 0.633,
+    "priority_within_one": 0.967,
+    "p1_recall": 0.8,
+    "hit1_sparse": 0.467,
+    "hit3_sparse": 0.567,
+    "hit1_dense": 0.6,
+    "hit3_dense": 0.8,
+    "hit1_hybrid": 0.667,
+    "hit3_hybrid": 0.867
+  }
+}

@@ -14,16 +14,20 @@ test_*.py
 *_test.py
 blind_testset.py
 evaluate.py
-eval_output.txt
-results.json
-confusion_matrix_*.png
+/eval_output.txt
+/results.json
+/confusion_matrix_*.png
 .pytest_cache/
 .coverage
 htmlcov/
-pilot_scorecard_report.md
+/pilot_scorecard_report.md
 QBR_Report_*.md
 *.db
 *.sqlite3
+
+# Project Output & Results Folder (Tracked)
+!result/
+!result/**
 
 # ==============================================================================
 # Python & Virtual Environments (uv, venv)
