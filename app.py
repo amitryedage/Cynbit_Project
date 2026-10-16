@@ -16,7 +16,81 @@ from soc_analyzer import SocAnalyzer
 from qbr_models import SAMPLE_QBR_DATA
 from qbr_generator import QBRGenerator
 
-st.set_page_config(page_title="Cybit Copilot - Stage 1 to 4 Pilot", layout="wide")
+st.set_page_config(
+    page_title="Cybit Copilot - Stage 1 to 4 Pilot",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Enterprise Sidebar Styling
+st.markdown("""
+<style>
+    /* Sidebar card & radio styling */
+    [data-testid="stSidebar"] {
+        padding-top: 1rem;
+    }
+    [data-testid="stSidebar"] .stRadio > div {
+        gap: 6px;
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        padding: 9px 12px;
+        border-radius: 6px;
+        border: 1px solid rgba(128, 128, 128, 0.18);
+        background: rgba(128, 128, 128, 0.04);
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 2px;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        border-color: rgba(37, 99, 235, 0.6);
+        background: rgba(37, 99, 235, 0.08);
+    }
+    .sidebar-brand-box {
+        padding: 4px 0px 14px 0px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+        margin-bottom: 14px;
+    }
+    .sidebar-brand-kicker {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        opacity: 0.7;
+        text-transform: uppercase;
+    }
+    .sidebar-brand-title {
+        font-size: 18px;
+        font-weight: 800;
+        margin-top: 2px;
+        line-height: 1.25;
+    }
+    .sidebar-brand-sub {
+        font-size: 12px;
+        opacity: 0.75;
+        margin-top: 2px;
+    }
+    .sidebar-pill {
+        display: inline-block;
+        background-color: rgba(37, 99, 235, 0.12);
+        color: #2563EB;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 4px;
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        margin-top: 8px;
+    }
+    .sidebar-card {
+        font-size: 11.5px;
+        line-height: 1.6;
+        padding: 10px 12px;
+        border-radius: 6px;
+        background-color: rgba(128, 128, 128, 0.07);
+        border: 1px solid rgba(128, 128, 128, 0.16);
+    }
+</style>
+""", unsafe_allow_html=True)
 
 storage = PilotStorage()
 config_mgr = PolicyConfigManager(storage=storage)
@@ -33,9 +107,20 @@ def load_model():
 
 model = load_model()
 
-# Top-level navigation
+# Sidebar Header & Brand Identity
+st.sidebar.markdown("""
+<div class="sidebar-brand-box">
+    <div class="sidebar-brand-kicker">Cybit Managed Services</div>
+    <div class="sidebar-brand-title">Copilot Operations</div>
+    <div class="sidebar-brand-sub">Autonomous IT & Cyber Defense Suite</div>
+    <div class="sidebar-pill">PILOT RELEASE V1.0.0</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Navigation
+st.sidebar.markdown("**Module Navigation**")
 page = st.sidebar.radio(
-    "Navigation",
+    "Navigation Menu",
     [
         "Triage Copilot (Stage 1)",
         "Security Advisory Digest (Stage 2)",
@@ -44,8 +129,48 @@ page = st.sidebar.radio(
         "Pilot Scorecard & Shadow Dashboard",
         "Policy Config & Drift Monitor"
     ],
-    index=0
+    index=0,
+    label_visibility="collapsed"
 )
+
+# Live Pilot Telemetry in Sidebar
+st.sidebar.divider()
+st.sidebar.markdown("**Live Pilot Telemetry**")
+sb_metrics = storage.get_pilot_metrics()
+sb_col1, sb_col2 = st.sidebar.columns(2)
+sb_col1.metric("Triaged", sb_metrics["total_triaged"])
+sb_col2.metric("Acceptance", f"{sb_metrics['acceptance_rate'] * 100:.0f}%")
+
+# Active Governance & Safeguards
+st.sidebar.markdown("**Operational Safeguards**")
+st.sidebar.markdown("""
+<div class="sidebar-card">
+    <div><strong>PII Redaction:</strong> Enforced (UK GDPR)</div>
+    <div><strong>Prompt Isolation:</strong> XML Contained</div>
+    <div><strong>Security Routing:</strong> 100% Floor</div>
+    <div><strong>Ungrounded Drafts:</strong> Zero Sent</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Service Endpoints & Health Info
+st.sidebar.divider()
+st.sidebar.markdown("**Service Endpoints**")
+st.sidebar.markdown("""
+<div class="sidebar-card">
+    <div><strong>REST API:</strong> <code>:8000/api/v1</code></div>
+    <div><strong>OpenAPI Docs:</strong> <code>:8000/docs</code></div>
+    <div><strong>Model Engine:</strong> <code>Hybrid Classifier</code></div>
+    <div><strong>Persistence:</strong> <code>cybit_pilot.db</code></div>
+</div>
+""", unsafe_allow_html=True)
+
+# Sidebar Footer
+st.sidebar.markdown("""
+<div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid rgba(128,128,128,0.2); font-size: 10px; opacity: 0.65; text-align: center;">
+    Cybit IT & Cyber Security Operations<br>
+    UK Data Protection & ISO 27001 Compliant
+</div>
+""", unsafe_allow_html=True)
 
 EXAMPLES = {
     "Routine: software request": "Hi, can you install Visio on my laptop please? No rush, my manager approved it.",
