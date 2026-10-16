@@ -384,6 +384,4 @@ Cynbit_Project/
 
 ---
 
-## 11. Maintenance and Support
 
-For questions, policy adjustments, or model retraining procedures, contact the Cybit Service Desk Leadership or refer to the internal Pilot Governance Runbook.
