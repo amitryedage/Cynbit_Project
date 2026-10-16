@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "global_low_confidence_threshold": 0.45,
+  "category_thresholds": {
+    "account_access": 0.4,
+    "email_m365": 0.45,
+    "network_vpn": 0.45,
+    "hardware": 0.45,
+    "software": 0.45,
+    "security_incident": 0.35,
+    "cloud_azure": 0.5,
+    "backup_storage": 0.45,
+    "printing": 0.45,
+    "data_bi": 0.5
+  },
+  "routing_rules": {
+    "security_incident_team": "Security Operations",
+    "p1_outage_team": "Senior engineer / duty manager",
+    "default_team": "Service desk L1"
+  },
+  "retrieval_settings": {
+    "default_mode": "hybrid",
+    "top_k": 3,
+    "hybrid_alpha": 0.5,
+    "category_boost": 0.15
+  },
+  "guardrail_thresholds": {
+    "prompt_injection_action": "escalate_to_security",
+    "block_ungrounded_drafts": true
+  },
+  "drift_alert_tolerances": {
+    "category_accuracy_drop_max": 0.05,
+    "p1_recall_drop_max": 0.05,
+    "kb_hit3_drop_max": 0.05
+  }
+}

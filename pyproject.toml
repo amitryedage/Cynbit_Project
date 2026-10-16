@@ -31,6 +31,39 @@ dev = [
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+py-modules = [
+    "advisory_generator",
+    "advisory_matcher",
+    "advisory_models",
+    "api",
+    "app",
+    "benchmark_models",
+    "blind_testset",
+    "config",
+    "drift_evaluator",
+    "embeddings",
+    "evaluate",
+    "guardrails",
+    "kb_and_data",
+    "qbr_generator",
+    "qbr_models",
+    "redaction",
+    "retrieval",
+    "scorecard",
+    "soc_analyzer",
+    "soc_models",
+    "storage",
+    "triage",
+]
+
+[tool.uv]
+package = false
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
