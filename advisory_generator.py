@@ -1,8 +1,4 @@
-"""
-Grounded Client Advisory Digest Generator (Stage 2).
-Generates client-tailored, executive-ready security threat digests.
-Adheres to human-in-the-loop safety: drafts require security analyst sign-off before dispatch.
-"""
+
 from typing import Dict, List, Any, Optional
 import datetime
 from advisory_models import AdvisoryDigest, ClientMatchResult
@@ -18,9 +14,7 @@ class AdvisoryDigestGenerator:
                         advisory: Dict[str, Any],
                         client: Dict[str, Any],
                         match_result: ClientMatchResult) -> AdvisoryDigest:
-        """
-        Synthesizes a tailored security digest specific to the client's infrastructure.
-        """
+      
         cve_id = advisory.get("cve_id", "CVE-UNKNOWN")
         advisory_title = advisory.get("title", "")
         client_name = client.get("client_name", "")
