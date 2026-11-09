@@ -1,8 +1,3 @@
-"""
-Security Advisory Relevance Matching Engine (Stage 2).
-Reuses the Semantic Embedding and Lexical matching architecture to match incoming
-threat advisories against client technology stack inventories and calculate contextual risk scores.
-"""
 from typing import List, Dict, Any, Optional
 import re
 from advisory_models import SecurityAdvisory, ClientProfile, ClientMatchResult, SAMPLE_CLIENTS
@@ -16,10 +11,6 @@ class AdvisoryMatcher:
         self.embedder = embedder or SemanticEmbedder()
 
     def match_asset_to_advisory(self, asset: Dict[str, Any], advisory: Dict[str, Any]) -> bool:
-        """
-        Determines whether a client asset is impacted by an advisory based on
-        vendor, product name, and affected product lists.
-        """
         adv_vendor = normalize(advisory.get("vendor", ""))
         adv_products = [normalize(p) for p in advisory.get("affected_products", [])]
         adv_text = normalize(f"{advisory.get('title', '')} {advisory.get('summary', '')} {advisory.get('technical_details', '')}")
