@@ -1,6 +1,6 @@
 # AI Service-Desk Copilot and Autonomous Managed Services Suite for Cybit
 
-Production-grade pilot implementation covering the full AI product roadmap for Cybit (UK managed IT and cybersecurity provider), spanning Stage 0 proof-of-concept, Stage 1 controlled pilot (Phases A through D), and Stages 2 through 4 product roadmap extensions as specified in the Product Requirements Document (PRD Section 15).
+
 
 ---
 
