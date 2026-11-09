@@ -1,4 +1,4 @@
-# AI Service Desk Triage Copilot - Stage 1 through Stage 4 Complete Pilot
+
 from typing import Optional
 import streamlit as st
 import pandas as pd
@@ -118,7 +118,6 @@ def load_model():
 
 model = load_model()
 
-# Sidebar Header & Brand Identity
 st.sidebar.markdown("""
 <div class="sidebar-brand-box">
     <div class="sidebar-brand-kicker">Cybit Managed Services</div>
@@ -128,7 +127,7 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Navigation
+
 st.sidebar.markdown("**Module Navigation**")
 page = st.sidebar.radio(
     "Navigation Menu",
@@ -264,7 +263,7 @@ if page == "Triage Copilot (Stage 1)":
 
         st.divider()
 
-        # Detailed Inspection Tabs
+        
         tab_draft, tab_kb, tab_pii, tab_guardrails, tab_probs = st.tabs([
             "Draft Reply", "Runbooks (KB)", "PII Redaction Audit (FR-5)", "Injection and Guardrails (FR-14)", "Category Probabilities"
         ])
