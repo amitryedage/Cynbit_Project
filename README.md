@@ -25,15 +25,9 @@ Cybit provides 24/7 managed IT services, cloud infrastructure management, and cy
 
 - Accelerate L1 triage accuracy, runbook discovery, and response drafting without increasing operational headcount.
 - Enforce strict security routing floors to guarantee zero missed ransomware, malware, or phishing incidents.
-- Protect data privacy under UK GDPR by automatically scrubbing PII, credentials, and network identifiers prior to model inference.
-- Automate downstream managed service value streams, including client vulnerability advisories, multi-stage SOC alert correlation, and executive Quarterly Business Reviews (QBRs).
 
-### Functional Scope Across Stages
 
-- **Stage 1 (Service Desk Copilot):** Real-time ticket sanitization (FR-5), prompt-injection defense (FR-14), category and priority classification (FR-2, FR-3), hybrid dense/sparse runbook retrieval with symptom memory (FR-10, FR-11), grounded citation drafting (FR-12), safety routing floors (FR-6, FR-7), idempotent ITSM webhook ingestion (FR-1), engineer 1-click feedback loops (FR-18), dynamic policy threshold tuning (FR-9), weekly automated drift detection (FR-22), and formal pilot scorecard evaluation against agreed gates (Section 10 and 11).
-- **Stage 2 (Client Security Advisory Digest):** Threat intelligence bulletin ingestion (CVEs), asset inventory matching across managed client estates, contextual risk scoring, and tailored executive security digest generation with mandatory analyst approval (PRD Section 15).
-- **Stage 3 (SOC Alert Summarisation and ATT&CK Mapping):** Ingestion of raw EDR and SIEM telemetry alerts, kill-chain correlation, automated MITRE ATT&CK technique mapping, attack narrative drafting, and containment workflow approval (PRD Section 15).
-- **Stage 4 (Executive QBR Service Reports):** Aggregation of multi-department ITSM operational KPIs, backup verification metrics, disaster recovery test results, and SOC cyber defense telemetry into client-ready executive Quarterly Business Review reports with Service Director sign-off (PRD Section 15).
+
 
 ---
 
