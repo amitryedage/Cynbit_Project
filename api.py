@@ -428,9 +428,6 @@ def generate_qbr_report(req: GenerateQBRRequest):
 
 @app.post("/api/v4/qbr/approve")
 def approve_qbr_report(req: ApproveQBRRequest):
-    """
-    Service Director review and sign-off for client QBR presentation.
-    """
     approved = qbr_generator.approve_qbr(req.qbr_doc, director_id=req.director_id, notes=req.notes)
     return approved.dict()
 
