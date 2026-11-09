@@ -1,8 +1,4 @@
-"""
-Automated Weekly Evaluation and Model Drift Detection Engine (FR-22).
-Runs automatic evaluations against frozen gold sets, monitors performance degradation,
-and triggers operational alerts if key metrics fall below agreed baselines.
-"""
+
 from typing import Dict, List, Any, Optional, Tuple
 import datetime
 import json
