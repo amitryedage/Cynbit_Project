@@ -1,8 +1,3 @@
-"""
-Dynamic Policy and Threshold Configuration Engine (FR-9).
-Allows admins to configure thresholds, category confidence floors,
-and escalation rules without code modifications. Every change is logged to the audit trail.
-"""
 from typing import Dict, Any, List, Optional
 import os
 import json
