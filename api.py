@@ -1,12 +1,4 @@
-"""
-Production API Service for Cybit Service-Desk Copilot (Stage 1 Pilot).
-Provides REST endpoints and webhooks for:
-- Automated ticket triage, priority scoring, runbook retrieval, and grounded reply drafting
-- ITSM/PSA ticketing tool webhook ingestion with duplicate detection (FR-1)
-- Engineer 1-click feedback capture and override tracking (FR-18)
-- Shadow mode evaluation records (PRD Phase 2)
-- Live pilot scorecard metrics and audit logging (FR-19, FR-20, FR-21)
-"""
+
 from typing import Dict, List, Any, Optional
 import time
 import uuid
@@ -39,9 +31,7 @@ def get_model() -> TicketTriage:
     return _model_instance
 
 
-# -----------------------------------------------------------------------------
-# Request & Response Schemas
-# -----------------------------------------------------------------------------
+
 class TicketTriageRequest(BaseModel):
     ticket_id: Optional[str] = Field(default=None, description="External ticketing tool ID (e.g. CYB-10842)")
     text: str = Field(..., min_length=3, description="Unstructured customer ticket text")
